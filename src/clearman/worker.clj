@@ -60,7 +60,7 @@
    (remove-server hostport))
  (let [[h p] (.split (name hostport) ":")
        p (if-not (nil? p)  (read-string p) 4730)
-       server-key (keyword (apply str (interpose ":" [h p])))]
+       server-key (keyword hostport)]
    ;; XXX: using this for async req/res handling works ok,
    ;; but since the protocol is pretty much always a one for one req/res
    ;; situation, its just as ok to use the synchronous wait-for-message
@@ -68,7 +68,8 @@
    ;; (receive-all @(ch) #(handle-response @(ch) %))
    (dosync
     (alter server-channels assoc server-key
-           {:ch (make-channel h p) :timeout (or timeout 5000)}))))
+           {:ch (make-channel h p) :timeout (or timeout 5000)})
+    (create-task server-key (worker-task server-key)))))
 
 (defn remove-server
   "Remove and disconnect from a Gearman server."
@@ -78,7 +79,8 @@
     (when server
       (dosync
        (close-connection (:ch server))
-       (alter server-channels dissoc hostport)))))
+       (alter server-channels dissoc hostport)
+       (remove-task hostport)))))
 
 ;; functions
 (defn add-function
@@ -120,19 +122,21 @@
   "Given a server name, start the worker<->server communication. Returns
   true if the worker is started successfully."
   [server-name]
-  (let [task (worker-task server-name)]
-    (if (nil? task)
-      false
-      (do
-        (create-task server-name task)
-        (start-task server-name)
-        true))))
+  (start-task server-name))
+
+  ;; (let [task (worker-task server-name)]
+  ;;   (if (nil? task)
+  ;;     false
+  ;;     (do
+
+  ;;       (start-task server-name)
+  ;;       true))))
 
 (defn stop-worker
   "Given a server name, stop the worker<->server communication."
   [server-name]
-  (stop-task server-name)
-  (remove-task server-name))
+  (stop-task server-name))
+;;(remove-task server-name))
 
 (defn start-workers
   []
