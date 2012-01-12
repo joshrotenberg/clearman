@@ -1,6 +1,6 @@
 (ns clearman.worker
   (:use clearman.core
-        clearman.state
+        clearman.worker-state
         clearman.request
         clearman.response
         clearman.protocol
@@ -13,7 +13,7 @@
   (:require [clojure.string :as str]))
 
 ;; watchers 
-(add-watch server-channels :server-update
+(add-watch worker-channels :server-update
            ;; when a server is added, we need to send it our current list
            ;; of capabilities with a can-do request
            (fn [context ref old new]
@@ -30,12 +30,12 @@
              (let [[removed added _] (diff old new)]
                (when removed
                  (let [fname (name (first (keys removed)))
-                       chs (map :ch (vals @server-channels))]
+                       chs (map :ch (vals @worker-channels))]
                    (doseq [ch chs]
                      (send-cant-do ch (name fname)))))
                (when added
                  (let [fname (name (first (keys added)))
-                       chs (map :ch (vals @server-channels))]
+                       chs (map :ch (vals @worker-channels))]
                    (doseq [ch chs]
                      (send-can-do ch (name fname))))))))
 
@@ -51,12 +51,13 @@
                                   :decoder gearman-response}))))
 
 (declare remove-server)
+(declare worker-task)
 (defn add-server
   "Add and (re)connect to a Gearman server. If an entry for this server already
    exists, it will be disconnected, removed and re-added/reconnected. This
    avoids orphaned connections."
  [hostport & {:keys [timeout client-id] }]
- (when ((keyword hostport) @server-channels)
+ (when ((keyword hostport) @worker-channels)
    (remove-server hostport))
  (let [[h p] (.split (name hostport) ":")
        p (if-not (nil? p)  (read-string p) 4730)
@@ -67,7 +68,7 @@
    ;; in the main worker task. possibly revisit, though
    ;; (receive-all @(ch) #(handle-response @(ch) %))
    (dosync
-    (alter server-channels assoc server-key
+    (alter worker-channels assoc server-key
            {:ch (make-channel h p) :timeout (or timeout 5000)})
     (create-task server-key (worker-task server-key)))))
 
@@ -75,11 +76,11 @@
   "Remove and disconnect from a Gearman server."
   [hostport]
   (let [hostport (keyword hostport)
-        server (hostport @server-channels)]
+        server (hostport @worker-channels)]
     (when server
       (dosync
        (close-connection (:ch server))
-       (alter server-channels dissoc hostport)
+       (alter worker-channels dissoc hostport)
        (remove-task hostport)))))
 
 ;; functions
@@ -102,12 +103,14 @@
    Gearman server. Returns nil if the server isn't found."
   [server-name]
   (let [[ch timeout] ((juxt :ch :timeout)
-                      ((keyword server-name) @server-channels))]
+                      ((keyword server-name) @worker-channels))]
     (if (nil? ch)
       nil
     (fn []
-      (send-grab-job ch)
+      (send-grab-job-uniq ch)
+      ;;(send-grab-job ch)
       (handle-response @(ch) (wait-for-message @(ch)))
+
       (send-pre-sleep ch)
       (try
         (handle-response @(ch) (wait-for-message @(ch) timeout))
@@ -116,7 +119,7 @@
 (defn worker-tasks
   "Returns a worker-task for each of the currently configured servers."
   []
-  (map #(worker-task %) (keys @server-channels)))
+  (map #(worker-task %) (keys @worker-channels)))
 
 (defn start-worker
   "Given a server name, start the worker<->server communication. Returns
@@ -140,12 +143,12 @@
 
 (defn start-workers
   []
-  (doseq [s (keys @server-channels)]
+  (doseq [s (keys @worker-channels)]
     (start-worker s)))
 
 (defn stop-workers
   []
-  (doseq [s (keys @server-channels)]
+  (doseq [s (keys @worker-channels)]
     (stop-worker s)))
 
 (defn worker-status

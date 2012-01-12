@@ -1,5 +1,5 @@
 (ns clearman.response
-  (:use clearman.state
+  (:use clearman.worker-state
         clearman.request
         clearman.protocol
         lamina.core))
@@ -22,13 +22,18 @@
                  :type :work-complete
                  :data [handle ((:fn fn-info) {:data payload
                                                :handle handle
-                                               :channel ch})]})
-    (prn response)))
+                                               :channel ch})]})))
 
-(defmethod handle-response :job-assign-uniq [ch response]
+(defmethod handle-response :job-assign-uniq [ch response] 
   (let [{:keys [res type data]} response
-        [handle function uniq-id payload] data]
-      (println "job assign unique: " handle)))
+        [handle function-name unique-id payload] data
+        fn-info ((keyword function-name) @worker-functions)]
+    (prn unique-id)
+    (enqueue ch {:req REQ
+                 :type :work-complete
+                 :data [handle ((:fn fn-info) {:data payload
+                                               :handle handle
+                                               :channel ch})]})))
 
 ;; response handlers
 (defmethod handle-response :error [ch response] 
