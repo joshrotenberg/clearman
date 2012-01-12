@@ -33,6 +33,21 @@ to start any new connections.
 Clearman uses Aleph/Lamina/Gloss for the network, channel, and
 protocol levels, respectively.
 
+### Client
+
+Not to be outdone by the worker implementation, Clearman clients are a
+little different than normal as well (as well as somewhat half baked
+so far, you've been warned).
+
+A Clearman "client" is just a single task queue connected to a single
+Gearman server to run a single Gearman function. All three of the
+singles in that sentence may change, but for now that was the path of
+least resistance to getting something working in
+asynchronous-land. You create a task queue pointed at a server with
+your various callbacks, add tasks to it, and run them. That's about it so far.
+
+It's probably easier to show and explain, so see below.
+
 ## Usage
 
 ```clojure
@@ -63,6 +78,55 @@ protocol levels, respectively.
 ;; see who is running
 (worker-status) ;; returns a map; {:some.other.host :running
                 ;;                 :localhost:4730 :stopped}
+```
+
+```clojure
+;; client
+
+(use 'clearman.client)
+
+;; create some functions to handle various events
+(defn on-created
+      [job]
+      (println "he fell for it: " (:handle job))) ;; get the job handle
+
+(defn on-complete
+      [job]	
+      (println "my job here is done: " (:data job))) ;; see the finished data
+
+;; this will run the "reverse" function on the Gearman serever
+;; at localhost:4730 (you'll see how below) and fire the registered
+;; callbacks when those things happen
+(create-task-queue "reverse" "localhost:4730" :on-created on-created
+		   	     		      :on-complete on-complete)
+
+
+;; if you want to create seperate queues for the same function, you can 
+;; use the :function argument. you'll refer to this queue by "a-queue"
+;; later on but it will run the reverse function. for now, this is the 
+;; "right way" if you are using multiple servers
+(create-task-queue "a-queue" "localhost:4730" :function "reverse"
+                                              :on-created on-created
+		                              :on-complete on-complete)
+
+
+;; now add some tasks to run. you can optionally specify a priority
+;; and a unique id
+(add-tasks "a-queue" "this is the job data")
+(add-tasks "a-queue" "this is more job data" :priority :high :unique-id "123")
+
+;; at this point, these tasks are queued but haven't run. to run them:
+
+(run-tasks "a-queue")
+
+;; you can add more tasks and keep running them forever
+
+;; when you are done with the queue, destroy it to close the connection and
+;; clean things up. destroying a queue will also destroy any un-run tasks.
+(destroy-task-queue "a-queue")
+
+
+;; and thats it for now
 ```
 
 ## Status

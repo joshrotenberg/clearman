@@ -58,28 +58,40 @@
              :channel (channel)}))))
 
 (defn destroy-task-queue
-  "Destroys a task queue if it exists, disconnecting from the Gearman server.
-  If :flush is specified, an attempt is made to flush any pending tasks
-  from the queue before destruction."
-  [queue-name & {:keys [flush]}]
+  "Destroys a task queue if it exists, disconnecting from the Gearman server."
+  [queue-name & args]
   (let [queue-name (keyword queue-name)
         task-queue (queue-name @task-queues)]
     (when-not (nil? task-queue)
-      (when flush (run-tasks queue-name))
       (dosync
        (close-connection (:client task-queue))
        (close (:channel task-queue))
        (alter task-queues dissoc queue-name)))))
 
+(defn- job-priority
+  [priority & background]
+  (let [prio (vector priority (if (first background) true false))]
+    (condp = prio
+      [:high false] :submit-job-high
+      [:high true] :submit-job-high-bg
+      [:low false] :submit-job-low
+      [:low true] :submit-job-low-bg
+      [:normal true] :submit-job-bg
+      :submit-job)))
+
 (defn add-task
   "Enqueue a task in a task queue."
-  [queue-name task & {:keys [priority unique-id]}]
+  [queue-name task & {:keys [priority unique-id background]}]
   (let [queue-name (keyword queue-name)
-        task-queue (queue-name @task-queues)]
+        task-queue (queue-name @task-queues)
+        job-type (job-priority (or priority :normal) background)]
     (if (nil? task-queue)
       false
       (do
-        (enqueue (:channel task-queue) {:data task :unique-id unique-id})))))
+        (enqueue (:channel task-queue)
+                 {:data task
+                  :type job-type
+                  :unique-id unique-id})))))
 
 (defn run-tasks
   "Run any currently queued tasks in the specified task queue."
@@ -89,7 +101,7 @@
         tasks (channel-seq (:channel task-queue))]
     (map #(enqueue @((:client task-queue))
                    {:req REQ
-                    :type :submit-job
+                    :type (:type %)
                     :data [(name (:function task-queue))
                            (:unique-id %)
                            (:data %)]}) tasks)))
