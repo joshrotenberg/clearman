@@ -8,11 +8,11 @@ Clearman is a Clojure library for creating
 Gearman server.
 
 There is currently a first release on clojars:
+
 ```clojure
 ;; in your project.clj ...
 [clearman "0.0.1"]
 ```
-
 ### Client
 
 Starting implementation now.
