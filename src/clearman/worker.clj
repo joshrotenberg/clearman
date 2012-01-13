@@ -17,6 +17,7 @@
 (defmulti handle-response (fn [ch response] (:type response)))
 
 ;; XXX it would be cool if the caller could add callbacks to handle these
+;; after they do some default work
 (defmethod handle-response :job-assign [ch response] 
   (let [{:keys [res type data]} response
         [handle function-name payload] data
