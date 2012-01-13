@@ -1,7 +1,5 @@
 (ns clearman.client
   (:use clearman.core
-        clearman.request
-        clearman.response
         clearman.protocol
         clearman.util
         aleph.tcp

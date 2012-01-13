@@ -125,7 +125,6 @@ It's probably easier to show and explain, so see below.
 ;; clean things up. destroying a queue will also destroy any un-run tasks.
 (destroy-task-queue "a-queue")
 
-
 ;; and thats it for now
 ```
 
