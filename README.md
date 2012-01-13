@@ -7,6 +7,12 @@ Clearman is a Clojure library for creating
 [Aleph](http://github.com/ztellman/aleph) to communicate with the
 Gearman server.
 
+There is currently a first release on clojars:
+```clojure
+;; in your project.clj ...
+[clearman "0.0.1"]
+```
+
 ### Client
 
 Starting implementation now.
@@ -50,6 +56,8 @@ It's probably easier to show and explain, so see below.
 
 ## Usage
 
+### Workers
+
 ```clojure
 ;; workers 
 
@@ -79,6 +87,8 @@ It's probably easier to show and explain, so see below.
 (worker-status) ;; returns a map; {:some.other.host :running
                 ;;                 :localhost:4730 :stopped}
 ```
+
+### Clients
 
 ```clojure
 ;; client
@@ -130,10 +140,18 @@ It's probably easier to show and explain, so see below.
 
 ## Status
 
-clearman is pretty new and probably not totally stable. I've been
+Clearman is pretty new and probably not totally stable. I've been
 focusing mainly on the worker part of the library since that is my
 main need currently, so that interface probably won't change much
 now. If you find bugs or have suggestions, please let me know.
+
+## TODO
+
+ * Implement multi-server task queues
+ * Write tests/examples
+ * Lots of cleanup and shuffling
+ * A server implementation too?
+ * Admin client interface
 
 ## License
 
